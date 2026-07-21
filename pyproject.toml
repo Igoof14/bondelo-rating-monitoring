@@ -1,0 +1,28 @@
+[project]
+name = "rating-monitoring"
+version = "0.1.0"
+description = "Мониторинг кредитных рейтингов агентств: детект изменений, запись в БД, постановка задачи на алерт в Cloud Tasks"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp>=3.10",
+    "asyncpg>=0.30",
+    "beautifulsoup4>=4.12",
+    "google-cloud-tasks>=2.16",
+    "lxml>=5.3",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.21",
+    "ruff>=0.8",
+]
+
+# Конфигурация ruff — в ruff.toml (house-style из монорепы).
+
+[tool.basedpyright]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"
