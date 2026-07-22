@@ -23,18 +23,17 @@ class Settings(BaseSettings):
     database_url: str
 
     # --- Прокси для скрейпинга (используются proxy_pool) ---
-    # Список прокси (через запятую/пробел/перенос) либо один прокси.
-    ratings_proxies: str | None = None
-    ratings_proxy: str | None = None
+    # Список прокси (через запятую/пробел/перенос); пусто — прямое соединение.
+    proxies: str | None = None
 
     # --- Google Cloud Tasks ---
     # Реквизиты очереди и HTTP-таргета воркера-алертера (в боте).
-    gcp_project: str = ""
-    gcp_location: str = ""
-    tasks_queue: str = ""
-    tasks_target_url: str = ""
+    gcp_project: str = "bond-invest"
+    gcp_location: str = "europe-west3"
+    tasks_queue: str = "bot-alert-tasks"
+    tasks_target_url: str = "http://34.178.57.246:8080/notify"
     # Service account для OIDC-токена запроса к таргету.
-    tasks_oidc_service_account: str = ""
+    tasks_oidc_service_account: str = "cloud-tasks-invoker@bond-invest.iam.gserviceaccount.com"
     # Аудитория OIDC-токена; по умолчанию совпадает с target URL.
     tasks_oidc_audience: str = ""
     # Не отправлять задачу, только залогировать payload (для локальной проверки).

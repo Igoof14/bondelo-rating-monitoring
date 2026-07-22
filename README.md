@@ -55,8 +55,7 @@ Payload задачи:
 | Переменная | Обязательна | Описание |
 |---|---|---|
 | `DATABASE_URL` | да | async URL PostgreSQL, напр. `postgresql+asyncpg://user:pass@host:5432/db` |
-| `RATINGS_PROXIES` | нет | список прокси (через запятую/пробел/перенос) |
-| `RATINGS_PROXY` | нет | одиночный прокси (если не задан список) |
+| `PROXIES` | нет | список прокси (через запятую/пробел/перенос); пусто — прямое соединение |
 | `GCP_PROJECT` | да¹ | проект GCP для очереди |
 | `GCP_LOCATION` | да¹ | регион очереди Cloud Tasks |
 | `TASKS_QUEUE` | да¹ | имя очереди Cloud Tasks |

@@ -29,20 +29,28 @@ class ReleaseRef(BaseModel):
 
 
 def _build_task(body: bytes) -> tasks_v2.Task:
-    """Собирает HTTP-задачу с OIDC-аутентификацией к таргету воркера."""
-    audience = settings.tasks_oidc_audience or settings.tasks_target_url
-    return tasks_v2.Task(
-        http_request=tasks_v2.HttpRequest(
-            http_method=tasks_v2.HttpMethod.POST,
-            url=settings.tasks_target_url,
-            headers={"Content-Type": "application/json"},
-            body=body,
-            oidc_token=tasks_v2.OidcToken(
-                service_account_email=settings.tasks_oidc_service_account,
-                audience=audience,
-            ),
-        ),
+    """Собирает HTTP-задачу к таргету воркера.
+
+    OIDC-токен прикрепляется только для ``https://``-таргета с заданным service
+    account: Cloud Tasks запрещает заголовок авторизации на не-HTTPS URL. Для
+    ``http://`` (например, локальный/тестовый IP) задача ставится без токена.
+    """
+    request = tasks_v2.HttpRequest(
+        http_method=tasks_v2.HttpMethod.POST,
+        url=settings.tasks_target_url,
+        headers={"Content-Type": "application/json"},
+        body=body,
     )
+    use_oidc = (
+        settings.tasks_target_url.startswith("https://")
+        and bool(settings.tasks_oidc_service_account)
+    )
+    if use_oidc:
+        request.oidc_token = tasks_v2.OidcToken(
+            service_account_email=settings.tasks_oidc_service_account,
+            audience=settings.tasks_oidc_audience or settings.tasks_target_url,
+        )
+    return tasks_v2.Task(http_request=request)
 
 
 def _create_task_sync(body: bytes) -> str:

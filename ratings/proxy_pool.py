@@ -45,11 +45,10 @@ def normalize_proxy(raw: str) -> str:
 def load_proxies() -> list[str | None]:
     """Загружает пул прокси для рейтингов из конфигурации.
 
-    Берёт ``config.ratings_proxies`` (список), иначе одиночный
-    ``config.ratings_proxy``. Если ничего не задано — ``[None]`` (прямое
-    соединение).
+    Берёт ``settings.proxies`` (список через запятую/пробел/перенос). Если
+    ничего не задано — ``[None]`` (прямое соединение).
     """
-    raw = settings.ratings_proxies or settings.ratings_proxy
+    raw = settings.proxies
     if not raw:
         return [None]
 
