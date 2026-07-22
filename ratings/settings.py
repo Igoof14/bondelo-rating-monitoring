@@ -18,12 +18,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- База данных (PostgreSQL на стороннем сервере) ---
-    # SQLAlchemy async URL, например: postgresql+asyncpg://user:pass@host:5432/db
     database_url: str
 
-    # --- Прокси для скрейпинга (используются proxy_pool) ---
-    # Список прокси (через запятую/пробел/перенос); пусто — прямое соединение.
     proxies: str | None = None
 
     # --- Google Cloud Tasks ---
@@ -39,7 +35,6 @@ class Settings(BaseSettings):
     # Не отправлять задачу, только залогировать payload (для локальной проверки).
     tasks_dry_run: bool = False
 
-    # --- Логирование ---
     log_level: str = "INFO"
 
 
