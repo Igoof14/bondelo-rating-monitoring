@@ -1,0 +1,30 @@
+# Виртуальные окружения (собираем свежее в образе)
+.venv
+venv
+
+# Секреты и локальная конфигурация — приходят из env Cloud Run
+.env
+
+# VCS и служебное
+.git
+.gitignore
+.dockerignore
+Dockerfile
+
+# Кэши/артефакты
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.ruff_cache
+.pytest_cache
+
+# Заметки/доки, не нужные в рантайме
+*.md
+ratings/**/*.md
+
+# Прочее
+.DS_Store
+.python-version
