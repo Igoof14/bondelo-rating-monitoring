@@ -1,11 +1,12 @@
-"""Доступ к состоянию дедупа рейтинговых релизов."""
+"""Доступ к БД: состояние дедупа релизов + подписки и портфели (таблицы бота)."""
 
 from __future__ import annotations
 
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
+from .alerts import PortfolioBond
 from .db import session_scope
 from .enums import RatingAgency
 from .events import ChangeType, RatingEvent
@@ -76,3 +77,60 @@ class RatingReleaseRepository:
         if modified_iso is not None and modified_iso != known[uid]:
             return ChangeType.CHANGED
         return None
+
+
+class SubscriptionRepository:
+    """Подписки на рейтинговые алерты (таблицей владеет бот, здесь read-only)."""
+
+    @classmethod
+    async def load_enabled(cls) -> dict[int, set[RatingAgency]]:
+        """Возвращает включённые агентства по telegram_id."""
+        query = text("""
+            SELECT telegram_id, agency
+            FROM rating_alert_settings
+            WHERE alerts_enabled IS TRUE
+        """)
+        async with session_scope() as session:
+            result = await session.execute(query)
+            subscriptions: dict[int, set[RatingAgency]] = {}
+            for telegram_id, agency_raw in result:
+                try:
+                    agency = RatingAgency(agency_raw)
+                except ValueError:
+                    logger.warning(f"Неизвестное агентство в rating_alert_settings: {agency_raw}")
+                    continue
+                subscriptions.setdefault(telegram_id, set()).add(agency)
+            return subscriptions
+
+
+class PortfolioRepository:
+    """Портфели пользователей: user_bonds ⋈ bot_users ⋈ moex_bonds ⋈ moex_emitters."""
+
+    @classmethod
+    async def load_portfolios(cls) -> dict[int, list[PortfolioBond]]:
+        """Возвращает бумаги портфеля с ИНН эмитента по telegram_id.
+
+        Позиции без ISIN или без пары в moex_bonds пропускаются. Одна бумага
+        на нескольких счетах схлопывается в одну.
+        """
+        query = text("""
+            SELECT DISTINCT
+                bu.telegram_id,
+                mb.isin,
+                COALESCE(mb.name, mb.shortname, mb.secid) AS name,
+                me.inn
+            FROM user_bonds ub
+            JOIN bot_users bu ON bu.id = ub.bot_user_id
+            JOIN moex_bonds mb ON mb.isin = ub.isin
+            LEFT JOIN moex_emitters me ON me.emitter_id = mb.emitter_id
+            WHERE ub.isin IS NOT NULL
+              AND mb.is_traded IS TRUE
+        """)
+        async with session_scope() as session:
+            result = await session.execute(query)
+            portfolios: dict[int, list[PortfolioBond]] = {}
+            for telegram_id, isin, name, inn in result:
+                portfolios.setdefault(telegram_id, []).append(
+                    PortfolioBond(isin=isin, name=name, emitter_inn=inn)
+                )
+            return portfolios

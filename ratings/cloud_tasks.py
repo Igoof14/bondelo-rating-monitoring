@@ -1,31 +1,21 @@
-"""Постановка задачи на алерт пользователям в Google Cloud Tasks.
+"""Постановка задач на алерт пользователям в Google Cloud Tasks.
 
-Сервис только детектит изменения рейтингов и кладёт лёгкую задачу со списком
-идентификаторов релизов. Резолв подписчиков/портфелей и отправку в Telegram
-выполняет воркер на стороне бота, читая детали из той же таблицы
-``rating_releases``.
+Сервис сам резолвит подписчиков/портфели и ставит по одной задаче на
+пользователя с готовыми персональными алертами. Воркер бота только
+форматирует текст и отправляет в Telegram.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 
 from google.cloud import tasks_v2
-from pydantic import BaseModel
 
+from .alerts import UserAlertsPayload
 from .settings import settings
 
 logger = logging.getLogger(__name__)
-
-
-class ReleaseRef(BaseModel):
-    """Ссылка на изменённый релиз для передачи воркеру-алертеру."""
-
-    agency: str
-    uid: str
-    change_type: str
 
 
 def _build_task(body: bytes) -> tasks_v2.Task:
@@ -53,28 +43,29 @@ def _build_task(body: bytes) -> tasks_v2.Task:
     return tasks_v2.Task(http_request=request)
 
 
-def _create_task_sync(body: bytes) -> str:
-    """Синхронно создаёт задачу в очереди и возвращает её имя."""
+def _create_tasks_sync(bodies: list[bytes]) -> list[str]:
+    """Синхронно создаёт задачи в очереди и возвращает их имена."""
     client = tasks_v2.CloudTasksClient()
     parent = client.queue_path(settings.gcp_project, settings.gcp_location, settings.tasks_queue)
-    response = client.create_task(parent=parent, task=_build_task(body))
-    return response.name
+    return [client.create_task(parent=parent, task=_build_task(body)).name for body in bodies]
 
 
-async def enqueue_alert(releases: list[ReleaseRef]) -> None:
-    """Ставит одну задачу со списком изменённых релизов.
+async def enqueue_alerts(payloads: list[UserAlertsPayload]) -> None:
+    """Ставит по одной задаче на каждого пользователя с его алертами.
 
     При ``settings.tasks_dry_run`` только логирует payload (без обращения к GCP).
     """
-    if not releases:
+    if not payloads:
         return
-
-    payload = {"releases": [r.model_dump() for r in releases]}
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
     if settings.tasks_dry_run:
-        logger.info("[dry-run] Задача не отправлена, payload: %s", payload)
+        for payload in payloads:
+            logger.info(
+                "[dry-run] Задача не отправлена, payload: %s",
+                payload.model_dump_json(),
+            )
         return
 
-    name = await asyncio.to_thread(_create_task_sync, body)
-    logger.info("Поставлена задача Cloud Tasks (%d релизов): %s", len(releases), name)
+    bodies = [payload.model_dump_json().encode("utf-8") for payload in payloads]
+    names = await asyncio.to_thread(_create_tasks_sync, bodies)
+    logger.info("Поставлено задач Cloud Tasks: %d", len(names))

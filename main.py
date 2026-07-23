@@ -1,4 +1,4 @@
-"""Точка входа Cloud Run Job: опросить агентства, сохранить, поставить задачу.
+"""Точка входа Cloud Run Job: опросить агентства, сматчить, поставить задачи.
 
 Один запуск = один прогон всех агентств → выход. Планирование запусков (каждые
 N минут) выполняется снаружи (Cloud Scheduler → Cloud Run Job).
@@ -10,11 +10,15 @@ import asyncio
 import logging
 import sys
 
+from ratings.alerts import build_user_alerts
 from ratings.base_service import BaseRatingPoller
-from ratings.cloud_tasks import ReleaseRef, enqueue_alert
+from ratings.cloud_tasks import enqueue_alerts
 from ratings.db import dispose_engine
+from ratings.enums import RatingAgency
+from ratings.events import RatingEvent
 from ratings.rating_nkr.service import NkrRatingPoller
 from ratings.rating_nra.service import NraRatingPoller
+from ratings.repository import PortfolioRepository, SubscriptionRepository
 from ratings.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -31,7 +35,7 @@ def _configure_logging() -> None:
     )
 
 
-async def _run_poller(poller_cls: type[BaseRatingPoller]) -> list[ReleaseRef]:
+async def _run_poller(poller_cls: type[BaseRatingPoller]) -> list[RatingEvent]:
     """Прогоняет один провайдер, изолируя его ошибки от остальных."""
     try:
         return await poller_cls().run_check()
@@ -41,19 +45,32 @@ async def _run_poller(poller_cls: type[BaseRatingPoller]) -> list[ReleaseRef]:
 
 
 async def run_all() -> int:
-    """Опрашивает все агентства и ставит одну задачу на алерт.
+    """Опрашивает агентства, матчит изменения на портфели, ставит задачи.
 
     Returns:
-        Количество изменённых релизов, попавших в задачу.
+        Количество пользователей, которым поставлены алерты.
 
     """
     results = await asyncio.gather(*(_run_poller(p) for p in POLLERS))
-    refs: list[ReleaseRef] = [ref for batch in results for ref in batch]
+    events_by_agency: dict[RatingAgency, list[RatingEvent]] = {
+        poller.agency: events for poller, events in zip(POLLERS, results) if events
+    }
 
-    await enqueue_alert(refs)
+    total_events = sum(len(events) for events in events_by_agency.values())
+    if not events_by_agency:
+        logger.info("Прогон завершён: изменений нет")
+        return 0
 
-    logger.info("Прогон завершён: изменений — %d", len(refs))
-    return len(refs)
+    subscriptions = await SubscriptionRepository.load_enabled()
+    portfolios = await PortfolioRepository.load_portfolios()
+    payloads = build_user_alerts(events_by_agency, subscriptions, portfolios)
+
+    await enqueue_alerts(payloads)
+
+    logger.info(
+        "Прогон завершён: изменений — %d, получателей — %d", total_events, len(payloads)
+    )
+    return len(payloads)
 
 
 def main() -> None:
@@ -76,3 +93,4 @@ async def _main_async() -> None:
 
 if __name__ == "__main__":
     main()
+
