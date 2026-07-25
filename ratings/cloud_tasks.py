@@ -27,18 +27,18 @@ def _build_task(body: bytes) -> tasks_v2.Task:
     """
     request = tasks_v2.HttpRequest(
         http_method=tasks_v2.HttpMethod.POST,
-        url=settings.tasks_target_url,
+        url=settings.alert_target_url,
         headers={"Content-Type": "application/json"},
         body=body,
     )
     use_oidc = (
-        settings.tasks_target_url.startswith("https://")
-        and bool(settings.tasks_oidc_service_account)
+        settings.alert_target_url.startswith("https://")
+        and bool(settings.alert_task_sa_email)
     )
     if use_oidc:
         request.oidc_token = tasks_v2.OidcToken(
-            service_account_email=settings.tasks_oidc_service_account,
-            audience=settings.tasks_oidc_audience or settings.tasks_target_url,
+            service_account_email=settings.alert_task_sa_email,
+            audience=settings.alert_token_audience or settings.alert_target_url,
         )
     return tasks_v2.Task(http_request=request)
 
@@ -46,7 +46,11 @@ def _build_task(body: bytes) -> tasks_v2.Task:
 def _create_tasks_sync(bodies: list[bytes]) -> list[str]:
     """Синхронно создаёт задачи в очереди и возвращает их имена."""
     client = tasks_v2.CloudTasksClient()
-    parent = client.queue_path(settings.gcp_project, settings.gcp_location, settings.tasks_queue)
+    parent = client.queue_path(
+        settings.gcp_project_id,
+        settings.cloud_tasks_location,
+        settings.cloud_tasks_queue,
+    )
     return [client.create_task(parent=parent, task=_build_task(body)).name for body in bodies]
 
 
