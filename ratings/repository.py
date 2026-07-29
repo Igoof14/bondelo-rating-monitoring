@@ -102,6 +102,27 @@ class SubscriptionRepository:
                 subscriptions.setdefault(telegram_id, set()).add(agency)
             return subscriptions
 
+    @classmethod
+    async def load_global_subscribers(cls) -> set[int]:
+        """Подписчики без токена — аудитория «весь рынок».
+
+        Токена нет → нет строк в ``user_bonds`` → матчинг по портфелю их
+        отсеивает. Пересечения с портфельной аудиторией нет, поэтому дважды
+        алерт не уйдёт.
+        """
+        query = text("""
+            SELECT DISTINCT s.telegram_id
+            FROM rating_alert_settings s
+            JOIN bot_users u ON u.telegram_id = s.telegram_id
+            WHERE s.alerts_enabled IS TRUE
+              AND u.is_active IS TRUE
+              -- Пустая строка — легаси-маркер отсутствия токена.
+              AND COALESCE(u.tinvest_token, '') = ''
+        """)
+        async with session_scope() as session:
+            result = await session.execute(query)
+            return {row[0] for row in result}
+
 
 class PortfolioRepository:
     """Портфели пользователей: user_bonds ⋈ bot_users ⋈ moex_bonds ⋈ moex_emitters."""

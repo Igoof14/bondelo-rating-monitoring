@@ -63,7 +63,10 @@ async def run_all() -> int:
 
     subscriptions = await SubscriptionRepository.load_enabled()
     portfolios = await PortfolioRepository.load_portfolios()
-    payloads = build_user_alerts(events_by_agency, subscriptions, portfolios)
+    global_subscribers = await SubscriptionRepository.load_global_subscribers()
+    payloads = build_user_alerts(
+        events_by_agency, subscriptions, portfolios, global_subscribers
+    )
 
     await enqueue_alerts(payloads)
 

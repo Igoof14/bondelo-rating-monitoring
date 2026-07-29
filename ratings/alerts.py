@@ -1,15 +1,31 @@
-"""Схемы алертов и матчинг рейтинговых событий на портфели пользователей.
+"""Схемы алертов и матчинг рейтинговых событий на получателей.
 
 Вся бизнес-логика резолва получателей живёт здесь: сервис сам вычисляет, кому
 и по каким бумагам относится релиз, и отдаёт боту готовый персональный payload.
+
+Аудитории две. У пользователя с токеном есть портфель, и релиз доезжает,
+только если задевает его бумаги. У пользователя без токена портфеля нет — ему
+уходят все релизы агентств, на которые он подписан.
 """
 
 from __future__ import annotations
+
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 from .enums import RatingAgency
 from .events import RatingEvent
+
+
+class AlertScope(StrEnum):
+    """Аудитория, которой адресован алерт.
+
+    Уезжает в payload — бот по нему подбирает формулировки.
+    """
+
+    PORTFOLIO = "portfolio"
+    MARKET = "market"
 
 
 class MatchedBond(BaseModel):
@@ -60,6 +76,7 @@ class UserAlertsPayload(BaseModel):
 
     telegram_id: int
     alerts: list[AlertItem]
+    scope: AlertScope = AlertScope.PORTFOLIO
 
 
 def _match_bonds(event: RatingEvent, bonds: list[PortfolioBond]) -> list[MatchedBond]:
@@ -81,12 +98,18 @@ def build_user_alerts(
     events_by_agency: dict[RatingAgency, list[RatingEvent]],
     subscriptions: dict[int, set[RatingAgency]],
     portfolios: dict[int, list[PortfolioBond]],
+    global_subscribers: set[int] | None = None,
 ) -> list[UserAlertsPayload]:
-    """Матчит события на портфели и собирает персональные payload'ы.
+    """Матчит события на получателей и собирает персональные payload'ы.
 
-    Пользователь получает алерт по релизу, если подписан на агентство релиза
-    и в его портфеле есть бумага затронутого эмитента/выпуска.
+    Пользователь с портфелем получает алерт по релизу, если подписан на
+    агентство релиза и в его портфеле есть бумага затронутого
+    эмитента/выпуска. Пользователь из ``global_subscribers`` портфеля не
+    имеет и получает все релизы своих агентств.
+
+    Портфельные payload'ы идут первыми: у них приоритет доставки.
     """
+    global_subscribers = global_subscribers or set()
     payloads: list[UserAlertsPayload] = []
 
     for telegram_id, agencies in subscriptions.items():
@@ -105,5 +128,19 @@ def build_user_alerts(
 
         if alerts:
             payloads.append(UserAlertsPayload(telegram_id=telegram_id, alerts=alerts))
+
+    for telegram_id in sorted(global_subscribers):
+        alerts = [
+            # Бумаг у получателя нет — бот отрисует релиз по эмитенту.
+            AlertItem(event=EventPayload.from_event(event), matched_bond_names=[])
+            for agency in subscriptions.get(telegram_id, set())
+            for event in events_by_agency.get(agency, [])
+        ]
+        if alerts:
+            payloads.append(
+                UserAlertsPayload(
+                    telegram_id=telegram_id, alerts=alerts, scope=AlertScope.MARKET
+                )
+            )
 
     return payloads

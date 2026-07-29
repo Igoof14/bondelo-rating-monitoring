@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     alert_token_audience: str = "https://bot-772435034855.europe-west3.run.app"
     # Не отправлять задачу, только залогировать payload (для локальной проверки).
     tasks_dry_run: bool = False
+    # Задержка доставки для аудитории без токена: подписчики с подключённым
+    # портфелем должны получить алерт первыми.
+    bulk_delay_seconds: int = 60
 
     log_level: str = "INFO"
 
