@@ -26,10 +26,8 @@ class Settings(BaseSettings):
     # Реквизиты очереди и HTTP-таргета воркера-алертера (в боте).
     gcp_project_id: str = "bond-invest"
     cloud_tasks_location: str = "europe-west3"
-    cloud_tasks_queue: str = "bot-alert-tasks"
-    alert_target_url: str = (
-        "https://bot-772435034855.europe-west3.run.app/events/rating-change"
-    )
+    cloud_tasks_queue: str = "bot-alerts"
+    alert_target_url: str = "https://bot-772435034855.europe-west3.run.app/events/rating-change"
     # Service account для OIDC-токена запроса к таргету.
     alert_task_sa_email: str = "cloud-tasks-invoker@bond-invest.iam.gserviceaccount.com"
     # Аудитория OIDC-токена; по умолчанию совпадает с target URL.
