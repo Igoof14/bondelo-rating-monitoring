@@ -14,6 +14,7 @@ class RatingAgency(Enum):
 
     NRA = "nra"
     NKR = "nkr"
+    ACRA = "acra"
 
     @property
     def display_name(self) -> str:
@@ -24,10 +25,12 @@ class RatingAgency(Enum):
 _DISPLAY_NAMES = {
     RatingAgency.NRA: "НРА",
     RatingAgency.NKR: "НКР",
+    RatingAgency.ACRA: "АКРА",
 }
 
 
 AVAILABLE_AGENCIES: list[RatingAgency] = [
     RatingAgency.NRA,
     RatingAgency.NKR,
+    RatingAgency.ACRA,
 ]

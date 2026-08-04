@@ -25,6 +25,8 @@ class ReleaseStub(BaseModel):
     uid: str
     url: str
     title: str = ""
+    # Имя эмитента, если агентство отдаёт его прямо в листинге (АКРА).
+    entity_name: str | None = None
     modified: datetime | None = None
 
 
