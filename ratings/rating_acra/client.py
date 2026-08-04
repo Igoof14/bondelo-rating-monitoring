@@ -24,6 +24,30 @@ def _build_ssl_context() -> ssl.SSLContext:
     return context
 
 
+class _Throttle:
+    """Выдерживает минимальный интервал между стартами запросов.
+
+    Ограничитель у АКРА — частота, а не параллельность (см. config), поэтому
+    разносим именно моменты отправки. Сон под блокировкой: так очередь
+    выстраивается честно, а не будит все корутины разом.
+    """
+
+    def __init__(self, interval: float) -> None:
+        """Создаёт троттл с заданным интервалом в секундах."""
+        self._interval = interval
+        self._lock = asyncio.Lock()
+        self._next_at = 0.0
+
+    async def wait(self) -> None:
+        """Ждёт до момента, когда можно отправлять следующий запрос."""
+        async with self._lock:
+            loop = asyncio.get_running_loop()
+            delay = self._next_at - loop.time()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            self._next_at = loop.time() + self._interval
+
+
 class AcraClient:
     """Клиент для перечисления и загрузки релизов рейтингов АКРА."""
 
@@ -40,6 +64,7 @@ class AcraClient:
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._rotator: ProxyRotator = load_rotator()
         self._ssl = _build_ssl_context()
+        self._throttle = _Throttle(config.REQUEST_INTERVAL)
 
     async def __aenter__(self) -> AcraClient:
         """Открывает HTTP-сессию с браузерным User-Agent и SSL-контекстом АКРА."""
@@ -70,6 +95,7 @@ class AcraClient:
         for _ in range(len(self._rotator.proxies)):
             proxy = self._rotator.next()
             try:
+                await self._throttle.wait()
                 async with self._semaphore, self._client.get(url, proxy=proxy) as response:
                     response.raise_for_status()
                     html = await response.text()
@@ -90,6 +116,7 @@ class AcraClient:
         last_error: Exception | None = None
         for attempt in range(config.RETRIES):
             try:
+                await self._throttle.wait()
                 async with (
                     self._semaphore,
                     self._client.get(stub.url, proxy=self._rotator.next()) as response,
