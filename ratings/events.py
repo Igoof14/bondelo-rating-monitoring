@@ -27,6 +27,10 @@ class ReleaseStub(BaseModel):
     title: str = ""
     # Имя эмитента, если агентство отдаёт его прямо в листинге (АКРА).
     entity_name: str | None = None
+    # Значение и прогноз, если они есть прямо в листинге отдельными колонками
+    # («Эксперт РА»): там они чище, чем в заголовке релиза.
+    rating_value: str | None = None
+    outlook: str | None = None
     modified: datetime | None = None
 
 

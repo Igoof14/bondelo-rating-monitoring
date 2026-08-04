@@ -10,6 +10,7 @@ import aiohttp
 
 from ratings.events import RatingEvent, ReleaseStub
 from ratings.proxy_pool import ProxyRotator, load_rotator
+from ratings.throttle import Throttle
 
 from . import config
 from .parser import parse_listing, parse_release
@@ -22,30 +23,6 @@ def _build_ssl_context() -> ssl.SSLContext:
     context = ssl.create_default_context()
     context.load_verify_locations(cafile=str(config.CA_BUNDLE))
     return context
-
-
-class _Throttle:
-    """Выдерживает минимальный интервал между стартами запросов.
-
-    Ограничитель у АКРА — частота, а не параллельность (см. config), поэтому
-    разносим именно моменты отправки. Сон под блокировкой: так очередь
-    выстраивается честно, а не будит все корутины разом.
-    """
-
-    def __init__(self, interval: float) -> None:
-        """Создаёт троттл с заданным интервалом в секундах."""
-        self._interval = interval
-        self._lock = asyncio.Lock()
-        self._next_at = 0.0
-
-    async def wait(self) -> None:
-        """Ждёт до момента, когда можно отправлять следующий запрос."""
-        async with self._lock:
-            loop = asyncio.get_running_loop()
-            delay = self._next_at - loop.time()
-            if delay > 0:
-                await asyncio.sleep(delay)
-            self._next_at = loop.time() + self._interval
 
 
 class AcraClient:
@@ -64,7 +41,7 @@ class AcraClient:
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._rotator: ProxyRotator = load_rotator()
         self._ssl = _build_ssl_context()
-        self._throttle = _Throttle(config.REQUEST_INTERVAL)
+        self._throttle = Throttle(config.REQUEST_INTERVAL)
 
     async def __aenter__(self) -> AcraClient:
         """Открывает HTTP-сессию с браузерным User-Agent и SSL-контекстом АКРА."""

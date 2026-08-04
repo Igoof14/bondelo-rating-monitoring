@@ -19,13 +19,19 @@ from ratings.events import RatingEvent
 from ratings.rating_acra.service import AcraRatingPoller
 from ratings.rating_nkr.service import NkrRatingPoller
 from ratings.rating_nra.service import NraRatingPoller
+from ratings.rating_ra.service import RaRatingPoller
 from ratings.repository import PortfolioRepository, SubscriptionRepository
 from ratings.settings import settings
 
 logger = logging.getLogger(__name__)
 
 # Провайдеры, опрашиваемые за один прогон.
-POLLERS: list[type[BaseRatingPoller]] = [NraRatingPoller, NkrRatingPoller, AcraRatingPoller]
+POLLERS: list[type[BaseRatingPoller]] = [
+    NraRatingPoller,
+    NkrRatingPoller,
+    AcraRatingPoller,
+    RaRatingPoller,
+]
 
 
 def _configure_logging() -> None:
